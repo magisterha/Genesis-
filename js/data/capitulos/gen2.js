@@ -1,4 +1,4 @@
-var chapterContent = {
+chapterContent = {
     id: 2,
     title: { 
         la: "Paradisus et homo", 
