@@ -1,4 +1,4 @@
-let chapterContent; 
+let chapterContent; // Declara la variable globalmente UNA SOLA VEZ.
 
 document.addEventListener('DOMContentLoaded', () => {
 
