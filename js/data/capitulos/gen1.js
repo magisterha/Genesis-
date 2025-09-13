@@ -1,4 +1,4 @@
-var chapterContent = {  
+chapterContent = {
     title: { 
         la: "De creatione mundi", 
         es: "La Creación del mundo", 
