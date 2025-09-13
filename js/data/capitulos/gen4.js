@@ -1,4 +1,4 @@
-chapterContent = {
+var chapterContent = {
     id: 4,
     title: { 
         la: "Cain et Abel", 
