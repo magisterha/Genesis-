@@ -1,32 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --------------------------------------------------------------------
-    // 1. ESTADO Y ELEMENTOS DEL DOM
-    // --------------------------------------------------------------------
-
-    /**
-     * Almacena el estado actual de la aplicación.
-     */
     const appState = {
-        currentLanguage: 'la', // Idioma por defecto (Latín)
+        currentLanguage: 'la',
         currentChapterId: null,
-        currentChapterData: null, // Almacenará los datos del capítulo actualmente cargado
+        currentChapterData: null,
     };
 
-    /**
-     * Referencias a los elementos del DOM para un acceso rápido y organizado.
-     */
     const DOM = {
         indexView: document.getElementById('index-view'),
         analysisView: document.getElementById('analysis-view'),
-        // Vista de Índice
         index: {
             langSwitcher: document.getElementById('language-switcher-index'),
             mainTitle: document.getElementById('main-title-index'),
             subtitle: document.getElementById('subtitle-index'),
             chapterGrid: document.querySelector('#index-view .chapter-grid'),
         },
-        // Vista de Análisis
         analysis: {
             langSwitcher: document.getElementById('language-switcher-analysis'),
             author: document.getElementById('author'),
@@ -39,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
             analysisTitle: document.getElementById('analysis-title'),
             analysisContent: document.getElementById('marginalia-contentus'),
         },
-        // Navegación
         navigation: {
             btnBackToIndex: document.getElementById('btn-back-to-index'),
             btnPrevChapter: document.getElementById('btn-prev-chapter'),
@@ -47,16 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --------------------------------------------------------------------
-    // 2. LÓGICA PRINCIPAL DE INICIALIZACIÓN
-    // --------------------------------------------------------------------
-
-    /**
-     * Inicializa la aplicación.
-     */
     function init() {
         if (typeof libroData === 'undefined') {
-            console.error("Los datos del libro (libroData) no se han cargado. Asegúrate de que el archivo genesis_data.js está incluido y se carga antes que app.js.");
+            console.error("Los datos del libro (libroData) no se han cargado.");
+            document.body.innerHTML = `<div style="padding: 2rem; color: red; background: white;">Error Crítico: El archivo <strong>js/data/genesis_data.js</strong> no se pudo cargar. Revisa que el archivo exista y que la ruta en index.html sea correcta.</div>`;
             return;
         }
         setupEventListeners();
@@ -65,11 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('index');
     }
 
-    /**
-     * Configura los listeners de eventos principales.
-     */
     function setupEventListeners() {
-        // Clic en la rejilla de capítulos (delegación de eventos)
         DOM.index.chapterGrid.addEventListener('click', (e) => {
             const chapterLink = e.target.closest('a');
             if (chapterLink && chapterLink.dataset.chapterId) {
@@ -78,14 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Botón para volver al índice
         DOM.navigation.btnBackToIndex.addEventListener('click', () => {
             history.pushState({ view: 'index' }, '', '#');
             renderIndexView();
             showView('index');
         });
 
-        // Navegación de capítulos
         DOM.navigation.btnPrevChapter.addEventListener('click', (e) => {
             e.preventDefault();
             if (appState.currentChapterId > 1) {
@@ -100,27 +75,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // Listener para el análisis de palabras (delegación de eventos)
-        // Se adjunta una sola vez al contenedor principal.
         DOM.analysis.textContent.addEventListener('click', handleWordClick);
     }
 
-    // --------------------------------------------------------------------
-    // 3. GESTIÓN DE VISTAS Y RENDERIZADO
-    // --------------------------------------------------------------------
-
-    /**
-     * Muestra la vista especificada y oculta la otra.
-     * @param {'index' | 'analysis'} viewName - El nombre de la vista a mostrar.
-     */
     function showView(viewName) {
         DOM.indexView.classList.toggle('hidden', viewName !== 'index');
         DOM.analysisView.classList.toggle('hidden', viewName !== 'analysis');
     }
 
-    /**
-     * Renderiza la vista del índice con los datos del libro.
-     */
     function renderIndexView() {
         const lang = appState.currentLanguage;
         DOM.index.mainTitle.textContent = libroData.title[lang] || libroData.title.la;
@@ -139,10 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
         history.replaceState({ view: 'index' }, '', '#');
     }
 
-    /**
-     * Carga dinámicamente el script de un capítulo y muestra la vista de análisis.
-     * @param {number | string} chapterId - El ID del capítulo a cargar.
-     */
     function renderAnalysisView(chapterId) {
         appState.currentChapterId = parseInt(chapterId);
         
@@ -150,18 +108,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!chapterInfo || !chapterInfo.file) {
             console.error(`No se encontraron datos o el nombre del archivo para el capítulo ${chapterId}`);
+            DOM.analysis.textContent.innerHTML = `<p style="color: red; font-weight: bold;">Error: No se encontraron los datos para el capítulo ${chapterId} en genesis_data.js.</p>`;
+            showView('analysis');
             return;
         }
 
         const scriptPath = `js/data/capitulos/${chapterInfo.file}`;
         
         loadScript(scriptPath, () => {
-            if (typeof chapterContent === 'undefined') {
-                console.error(`La variable 'chapterContent' no se encontró en ${scriptPath}`);
+            if (typeof chapterContent === 'undefined' || chapterContent.id !== appState.currentChapterId) {
+                console.error(`La variable 'chapterContent' no se encontró o es incorrecta en ${scriptPath}`);
+                DOM.analysis.textContent.innerHTML = `<p style="color: red; font-weight: bold;">Error: El archivo ${chapterInfo.file} no contiene los datos correctos (variable global 'chapterContent') para el capítulo ${appState.currentChapterId}. Revisa si hay errores de sintaxis en ese archivo.</p>`;
+                showView('analysis');
                 return;
             }
             
-            appState.currentChapterData = chapterContent; // <-- Guardamos los datos del capítulo actual en el estado
+            appState.currentChapterData = chapterContent;
             populateAnalysisContent(appState.currentChapterData);
             showView('analysis');
             window.scrollTo(0, 0);
@@ -169,53 +131,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Rellena la vista de análisis con el contenido del capítulo cargado.
-     * @param {object} content - El objeto chapterContent del archivo del capítulo.
-     */
     function populateAnalysisContent(content) {
         const lang = appState.currentLanguage;
-        
-        // Cabecera
         DOM.analysis.author.textContent = libroData.author;
         DOM.analysis.mainTitle.textContent = libroData.title[lang] || libroData.title.la;
         DOM.analysis.subtitle.textContent = `${libroData.ui.chapter[lang] || 'Caput'} ${content.id}: ${content.title[lang] || content.title.la}`;
-        
-        // Introducción
         DOM.analysis.contextTitle.textContent = libroData.ui.introduction[lang] || 'Introductio';
         DOM.analysis.contextContent.innerHTML = content.introduction[lang] || content.introduction.la;
-        
-        // Texto principal
         DOM.analysis.textTitle.textContent = libroData.ui.text[lang] || 'Textus';
         populateTextContent(content);
-        
-        // Panel de análisis
         DOM.analysis.analysisTitle.textContent = libroData.ui.analysis[lang] || 'Analysis';
         resetAnalysisPanel();
-
-        // Navegación
         updateChapterNavigation();
-
-        // Selector de idioma
         setupLanguageSwitcher(DOM.analysis.langSwitcher, () => populateAnalysisContent(content));
     }
     
-    // --------------------------------------------------------------------
-    // 4. LÓGICA DE INTERACTIVIDAD DEL TEXTO
-    // --------------------------------------------------------------------
-
-    /**
-     * Crea y muestra el contenido del texto principal, versículo por versículo.
-     * @param {object} content - El objeto chapterContent.
-     */
     function populateTextContent(content) {
-        DOM.analysis.textContent.innerHTML = ''; // Limpiar contenido anterior
-        
+        DOM.analysis.textContent.innerHTML = '';
         content.verses.forEach(verse => {
             const verseContainer = document.createElement('div');
             verseContainer.className = 'verse-block mb-4';
-            
-            // Texto en Latín (interactivo)
             const pLatin = document.createElement('p');
             pLatin.dataset.lang = 'la';
             pLatin.innerHTML = `<span class="verse-number">${verse.id}&nbsp;</span>`;
@@ -228,8 +163,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 pLatin.appendChild(wordSpan);
             });
             verseContainer.appendChild(pLatin);
-
-            // Textos de traducción (no interactivos)
             libroData.languages.filter(l => l.id !== 'la').forEach(lang => {
                 const pTranslation = document.createElement('p');
                 pTranslation.dataset.lang = lang.id;
@@ -237,30 +170,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const translationText = Array.isArray(verse.words[lang.id]) 
                     ? verse.words[lang.id].join(' ') 
                     : verse.words[lang.id];
-                pTranslation.innerHTML = `<span class="verse-number text-transparent">${verse.id}&nbsp;</span>${translationText}`;
+                pTranslation.innerHTML = `<span class="verse-number text-transparent">${verse.id}&nbsp;</span>${translationText || ''}`;
                 verseContainer.appendChild(pTranslation);
             });
-            
             DOM.analysis.textContent.appendChild(verseContainer);
         });
-
-        // Asegurar que solo el idioma activo es visible
         updateVisibleLanguage();
     }
     
-    /**
-     * Maneja el clic en una palabra y busca su análisis.
-     * Se define una sola vez y se reutiliza.
-     */
     function handleWordClick(e) {
         if (e.target.classList.contains('verbum')) {
             const verseId = parseInt(e.target.dataset.verseId);
             const wordIndex = parseInt(e.target.dataset.wordIndex);
-            
-            // Asegurarse de que hay datos del capítulo cargados
             if (!appState.currentChapterData) return;
-            
-            // Usa los datos del capítulo actual almacenados en appState
             const verseData = appState.currentChapterData.verses.find(v => v.id === verseId);
             if (verseData && verseData.analysis[wordIndex]) {
                 displayAnalysis(verseData.analysis[wordIndex], e.target);
@@ -268,58 +190,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Muestra el análisis morfológico de una palabra en el panel lateral.
-     * @param {object} analysisData - Los datos de análisis de la palabra.
-     * @param {HTMLElement} targetElement - El elemento <span> de la palabra que fue clicada.
-     */
     function displayAnalysis(analysisData, targetElement) {
-        // Resaltar palabra activa
         document.querySelectorAll('.verbum.activus').forEach(el => el.classList.remove('activus'));
         targetElement.classList.add('activus');
-
         const lang = appState.currentLanguage;
         const terms = libroData.ui.analysisTerms;
-
         let html = `<div class="p-4 bg-white/40 rounded-md">`;
         html += `<h4 class="text-xl font-bold text-[#3d2c1d] mb-3">${analysisData.term}</h4>`;
-        
         const details = analysisData.details;
         const analysisOrder = ['lemma', 'morphology', 'case', 'number', 'gender', 'person', 'tense', 'mood', 'voice', 'meaning', 'notes'];
-
         analysisOrder.forEach(key => {
             if (details[key]) {
                 html += `
                     <div class="flex justify-between border-b border-[#d1c4b0]/50 py-1.5 text-sm">
                         <span class="font-semibold text-[#6d4c35]">${terms[key][lang] || terms[key].la}:</span>
                         <span class="text-right">${details[key]}</span>
-                    </div>
-                `;
+                    </div>`;
             }
         });
-        
         html += `</div>`;
         DOM.analysis.analysisContent.innerHTML = html;
     }
     
-    /**
-     * Restablece el panel de análisis a su estado inicial.
-     */
     function resetAnalysisPanel() {
         const lang = appState.currentLanguage;
         DOM.analysis.analysisContent.innerHTML = `<p class="text-[#6d4c35] font-['IM_Fell_English']">${libroData.ui.analysisPrompt[lang]}</p>`;
         document.querySelectorAll('.verbum.activus').forEach(el => el.classList.remove('activus'));
     }
 
-    // --------------------------------------------------------------------
-    // 5. GESTIÓN DE IDIOMA Y NAVEGACIÓN
-    // --------------------------------------------------------------------
-
-    /**
-     * Crea los botones del selector de idioma.
-     * @param {HTMLElement} container - El elemento donde se insertarán los botones.
-     * @param {function} onLanguageChange - Callback a ejecutar cuando el idioma cambia.
-     */
     function setupLanguageSwitcher(container, onLanguageChange) {
         container.innerHTML = '';
         libroData.languages.forEach(lang => {
@@ -338,10 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Establece el idioma activo y actualiza la interfaz.
-     * @param {string} langId - El ID del idioma (ej. 'la', 'es').
-     */
     function setLanguage(langId) {
         appState.currentLanguage = langId;
         document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -350,9 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateVisibleLanguage();
     }
     
-    /**
-     * Muestra/oculta los párrafos de texto según el idioma seleccionado.
-     */
     function updateVisibleLanguage() {
         const lang = appState.currentLanguage;
         document.querySelectorAll('[data-lang]').forEach(el => {
@@ -360,61 +251,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Actualiza la visibilidad y los enlaces de los botones de navegación de capítulos.
-     */
     function updateChapterNavigation() {
         const currentId = appState.currentChapterId;
         const prevBtn = DOM.navigation.btnPrevChapter;
         const nextBtn = DOM.navigation.btnNextChapter;
-
-        // Botón Anterior
-        if (currentId > 1) {
-            prevBtn.style.visibility = 'visible';
-            prevBtn.dataset.chapterId = currentId - 1;
-        } else {
-            prevBtn.style.visibility = 'hidden';
-        }
-
-        // Botón Siguiente
-        if (currentId < libroData.chapters.length) {
-            nextBtn.style.visibility = 'visible';
-            nextBtn.dataset.chapterId = currentId + 1;
-        } else {
-            nextBtn.style.visibility = 'hidden';
-        }
+        prevBtn.style.visibility = (currentId > 1) ? 'visible' : 'hidden';
+        prevBtn.dataset.chapterId = currentId - 1;
+        nextBtn.style.visibility = (currentId < libroData.chapters.length) ? 'visible' : 'hidden';
+        nextBtn.dataset.chapterId = currentId + 1;
     }
 
-    // --------------------------------------------------------------------
-    // 6. UTILIDADES
-    // --------------------------------------------------------------------
-
-    /**
-     * Carga un script dinámicamente y ejecuta un callback al finalizar.
-     * @param {string} src - La ruta del script a cargar.
-     * @param {function} callback - La función a ejecutar cuando el script se haya cargado.
-     */
     function loadScript(src, callback) {
-        // Eliminar script anterior del mismo capítulo si existe
         const oldScript = document.querySelector(`script[data-chapter-script]`);
         if (oldScript) {
             oldScript.remove();
         }
-
         const script = document.createElement('script');
         script.src = src;
-        script.dataset.chapterScript = 'true'; // Marcar como script de capítulo
+        script.dataset.chapterScript = 'true';
         script.onload = () => {
             callback();
         };
         script.onerror = () => {
             console.error(`Error al cargar el script: ${src}`);
+            DOM.analysis.textContent.innerHTML = `<p style="color: red; font-weight: bold;">Error: No se pudo cargar el archivo del capítulo desde la ruta: <strong>${src}</strong>. Revisa que el archivo exista y que el nombre sea correcto.</p>`;
+            showView('analysis');
         };
         document.body.appendChild(script);
     }
 
-    // Arrancar la aplicación
     init();
-
 });
-
