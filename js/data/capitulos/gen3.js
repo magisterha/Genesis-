@@ -1,4 +1,4 @@
-const chapterContent = {
+chapterContent = {
     id: 3,
     title: { 
         la: "Lapsus hominis", 
