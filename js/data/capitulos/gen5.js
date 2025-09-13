@@ -1,4 +1,4 @@
-const chapterContent = {
+var chapterContent = {
     id: 5,
     title: { 
         la: "Generationes ab Adam", 
