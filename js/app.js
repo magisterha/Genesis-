@@ -1,8 +1,3 @@
-/**
- * Lógica principal para la aplicación de edición digital interactiva.
- * Gestiona el estado, la renderización de vistas, la carga de datos de capítulos,
- * el cambio de idioma y la interactividad del análisis de texto.
- */
 document.addEventListener('DOMContentLoaded', () => {
 
     // --------------------------------------------------------------------
@@ -15,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const appState = {
         currentLanguage: 'la', // Idioma por defecto (Latín)
         currentChapterId: null,
+        currentChapterData: null, // Almacenará los datos del capítulo actualmente cargado
     };
 
     /**
@@ -103,6 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderAnalysisView(appState.currentChapterId + 1);
             }
         });
+        
+        // Listener para el análisis de palabras (delegación de eventos)
+        // Se adjunta una sola vez al contenedor principal.
+        DOM.analysis.textContent.addEventListener('click', handleWordClick);
     }
 
     // --------------------------------------------------------------------
@@ -161,7 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            populateAnalysisContent(chapterContent);
+            appState.currentChapterData = chapterContent; // <-- Guardamos los datos del capítulo actual en el estado
+            populateAnalysisContent(appState.currentChapterData);
             showView('analysis');
             window.scrollTo(0, 0);
             history.pushState({ view: 'analysis', chapterId: appState.currentChapterId }, '', `#capitulo-${appState.currentChapterId}`);
@@ -245,17 +246,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Asegurar que solo el idioma activo es visible
         updateVisibleLanguage();
-
-        // Listener para el análisis de palabras
-        DOM.analysis.textContent.addEventListener('click', handleWordClick);
     }
     
+    /**
+     * Maneja el clic en una palabra y busca su análisis.
+     * Se define una sola vez y se reutiliza.
+     */
     function handleWordClick(e) {
         if (e.target.classList.contains('verbum')) {
             const verseId = parseInt(e.target.dataset.verseId);
             const wordIndex = parseInt(e.target.dataset.wordIndex);
             
-            const verseData = chapterContent.verses.find(v => v.id === verseId);
+            // Asegurarse de que hay datos del capítulo cargados
+            if (!appState.currentChapterData) return;
+            
+            // Usa los datos del capítulo actual almacenados en appState
+            const verseData = appState.currentChapterData.verses.find(v => v.id === verseId);
             if (verseData && verseData.analysis[wordIndex]) {
                 displayAnalysis(verseData.analysis[wordIndex], e.target);
             }
