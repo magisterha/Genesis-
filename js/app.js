@@ -1,3 +1,5 @@
+let chapterContent; 
+
 document.addEventListener('DOMContentLoaded', () => {
 
     const appState = {
@@ -282,3 +284,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     init();
 });
+
