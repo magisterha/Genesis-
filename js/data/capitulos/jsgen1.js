@@ -1,5 +1,4 @@
-const chapterContent = {
-    id: 1,
+const chapterContent = {    
     title: { 
         la: "De creatione mundi", 
         es: "La Creación del mundo", 
