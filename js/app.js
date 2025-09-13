@@ -1,26 +1,36 @@
+/**
+ * Lógica principal para la aplicación de edición digital interactiva.
+ * Gestiona el estado, la renderización de vistas, la carga de datos de capítulos,
+ * el cambio de idioma y la interactividad del análisis de texto.
+ */
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ESTADO DE LA APLICACIÓN ---
-    // Almacena la vista actual, el capítulo y el idioma seleccionado.
+
+    // --------------------------------------------------------------------
+    // 1. ESTADO Y ELEMENTOS DEL DOM
+    // --------------------------------------------------------------------
+
+    /**
+     * Almacena el estado actual de la aplicación.
+     */
     const appState = {
-        currentView: 'index',
+        currentLanguage: 'la', // Idioma por defecto (Latín)
         currentChapterId: null,
-        // Idioma por defecto. Puedes cambiarlo a 'es' (Español) o 'la' (Latín) si lo prefieres.
-        currentLang: 'he', 
     };
 
-    // --- SELECTORES DE ELEMENTOS DEL DOM ---
-    // Guardamos referencias a los elementos HTML para no tener que buscarlos constantemente.
-    const a = {
-        views: {
-            index: document.getElementById('index-view'),
-            analysis: document.getElementById('analysis-view'),
-        },
+    /**
+     * Referencias a los elementos del DOM para un acceso rápido y organizado.
+     */
+    const DOM = {
+        indexView: document.getElementById('index-view'),
+        analysisView: document.getElementById('analysis-view'),
+        // Vista de Índice
         index: {
             langSwitcher: document.getElementById('language-switcher-index'),
             mainTitle: document.getElementById('main-title-index'),
             subtitle: document.getElementById('subtitle-index'),
             chapterGrid: document.querySelector('#index-view .chapter-grid'),
         },
+        // Vista de Análisis
         analysis: {
             langSwitcher: document.getElementById('language-switcher-analysis'),
             author: document.getElementById('author'),
@@ -32,115 +42,120 @@ document.addEventListener('DOMContentLoaded', () => {
             textContent: document.getElementById('paragrafus-contentus'),
             analysisTitle: document.getElementById('analysis-title'),
             analysisContent: document.getElementById('marginalia-contentus'),
-            btnPrev: document.getElementById('btn-prev-chapter'),
-            btnNext: document.getElementById('btn-next-chapter'),
+        },
+        // Navegación
+        navigation: {
             btnBackToIndex: document.getElementById('btn-back-to-index'),
+            btnPrevChapter: document.getElementById('btn-prev-chapter'),
+            btnNextChapter: document.getElementById('btn-next-chapter'),
         }
     };
 
-    // --- FUNCIONES AUXILIARES ---
+    // --------------------------------------------------------------------
+    // 2. LÓGICA PRINCIPAL DE INICIALIZACIÓN
+    // --------------------------------------------------------------------
 
     /**
-     * Carga un archivo JavaScript de forma dinámica.
-     * Esencial para cargar los archivos de cada capítulo solo cuando se necesitan.
-     * @param {string} src - La ruta al archivo .js
-     * @param {function} callback - Función a ejecutar cuando el script se haya cargado.
+     * Inicializa la aplicación.
      */
-    function loadScript(src, callback) {
-        // Elimina cualquier script de capítulo anterior para evitar conflictos.
-        const oldScript = document.getElementById('chapter-script');
-        if (oldScript) {
-            oldScript.remove();
+    function init() {
+        if (typeof libroData === 'undefined') {
+            console.error("Los datos del libro (libroData) no se han cargado. Asegúrate de que el archivo genesis_data.js está incluido y se carga antes que app.js.");
+            return;
         }
-
-        const script = document.createElement('script');
-        script.src = src;
-        script.id = 'chapter-script';
-        script.onload = () => {
-            console.log(`Script cargado: ${src}`);
-            if (callback) callback();
-        };
-        script.onerror = () => console.error(`Error al cargar el script: ${src}`);
-        document.body.appendChild(script);
-    }
-
-    /**
-     * Muestra una vista ('index' o 'analysis') y oculta las demás.
-     * @param {string} viewName - El nombre de la vista a mostrar.
-     */
-    function showView(viewName) {
-        appState.currentView = viewName;
-        Object.values(a.views).forEach(view => view.classList.add('hidden'));
-        if (a.views[viewName]) {
-            a.views[viewName].classList.remove('hidden');
-        }
-    }
-    
-    // --- LÓGICA DE RENDERIZADO ---
-
-    /**
-     * Renderiza los botones del selector de idioma.
-     * @param {HTMLElement} container - El elemento donde se insertarán los botones.
-     */
-    function renderLanguageSwitcher(container) {
-        container.innerHTML = ''; // Limpia el contenido anterior
-        libroData.languages.forEach(lang => {
-            const btn = document.createElement('button');
-            btn.className = `lang-btn ${appState.currentLang === lang.id ? 'active-lang' : ''}`;
-            btn.textContent = lang.name;
-            btn.dataset.lang = lang.id;
-            container.appendChild(btn);
-        });
-    }
-
-    /**
-     * Muestra y configura la vista del índice de capítulos.
-     */
-    function renderIndexView() {
-        const lang = appState.currentLang;
-        
-        // Rellena títulos e información del libro
-        a.index.mainTitle.textContent = libroData.title[lang];
-        a.index.subtitle.textContent = libroData.subtitle[lang];
-        
-        // Crea la rejilla de capítulos
-        a.index.chapterGrid.innerHTML = ''; // Limpia antes de añadir
-        libroData.chapters.forEach(chapter => {
-            const li = document.createElement('li');
-            const link = document.createElement('a');
-            link.href = `#chapter-${chapter.id}`;
-            link.dataset.chapterId = chapter.id;
-            
-            const chapterNum = document.createElement('span');
-            chapterNum.textContent = `${libroData.ui.chapter[lang]} ${chapter.id}`;
-            
-            const chapterTitle = document.createElement('span');
-            chapterTitle.className = 'chapter-title';
-            chapterTitle.textContent = chapter.title[lang];
-            
-            link.appendChild(chapterNum);
-            link.appendChild(chapterTitle);
-            li.appendChild(link);
-            a.index.chapterGrid.appendChild(li);
-        });
-        
-        // Renderiza el selector de idioma
-        renderLanguageSwitcher(a.index.langSwitcher);
+        setupEventListeners();
+        setLanguage(appState.currentLanguage);
+        renderIndexView();
         showView('index');
     }
 
     /**
-     * Carga los datos de un capítulo específico y muestra la vista de análisis.
+     * Configura los listeners de eventos principales.
+     */
+    function setupEventListeners() {
+        // Clic en la rejilla de capítulos (delegación de eventos)
+        DOM.index.chapterGrid.addEventListener('click', (e) => {
+            const chapterLink = e.target.closest('a');
+            if (chapterLink && chapterLink.dataset.chapterId) {
+                e.preventDefault();
+                renderAnalysisView(chapterLink.dataset.chapterId);
+            }
+        });
+
+        // Botón para volver al índice
+        DOM.navigation.btnBackToIndex.addEventListener('click', () => {
+            history.pushState({ view: 'index' }, '', '#');
+            renderIndexView();
+            showView('index');
+        });
+
+        // Navegación de capítulos
+        DOM.navigation.btnPrevChapter.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (appState.currentChapterId > 1) {
+                renderAnalysisView(appState.currentChapterId - 1);
+            }
+        });
+
+        DOM.navigation.btnNextChapter.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (appState.currentChapterId < libroData.chapters.length) {
+                renderAnalysisView(appState.currentChapterId + 1);
+            }
+        });
+    }
+
+    // --------------------------------------------------------------------
+    // 3. GESTIÓN DE VISTAS Y RENDERIZADO
+    // --------------------------------------------------------------------
+
+    /**
+     * Muestra la vista especificada y oculta la otra.
+     * @param {'index' | 'analysis'} viewName - El nombre de la vista a mostrar.
+     */
+    function showView(viewName) {
+        DOM.indexView.classList.toggle('hidden', viewName !== 'index');
+        DOM.analysisView.classList.toggle('hidden', viewName !== 'analysis');
+    }
+
+    /**
+     * Renderiza la vista del índice con los datos del libro.
+     */
+    function renderIndexView() {
+        const lang = appState.currentLanguage;
+        DOM.index.mainTitle.textContent = libroData.title[lang] || libroData.title.la;
+        DOM.index.subtitle.textContent = libroData.subtitle[lang] || libroData.subtitle.la;
+        
+        DOM.index.chapterGrid.innerHTML = libroData.chapters.map(chapter => `
+            <li>
+                <a href="#" data-chapter-id="${chapter.id}">
+                    <span>${libroData.ui.chapter[lang] || 'Caput'} ${chapter.id}</span>
+                    <span class="chapter-title">${chapter.title[lang] || chapter.title.la}</span>
+                </a>
+            </li>
+        `).join('');
+
+        setupLanguageSwitcher(DOM.index.langSwitcher, () => renderIndexView());
+        history.replaceState({ view: 'index' }, '', '#');
+    }
+
+    /**
+     * Carga dinámicamente el script de un capítulo y muestra la vista de análisis.
      * @param {number | string} chapterId - El ID del capítulo a cargar.
      */
     function renderAnalysisView(chapterId) {
         appState.currentChapterId = parseInt(chapterId);
         
-        // Construye la ruta al archivo JS del capítulo
-        const scriptPath = `js/data/capitulos/gen${chapterId}.js`;
+        const chapterInfo = libroData.chapters.find(c => c.id === appState.currentChapterId);
+        
+        if (!chapterInfo || !chapterInfo.file) {
+            console.error(`No se encontraron datos o el nombre del archivo para el capítulo ${chapterId}`);
+            return;
+        }
+
+        const scriptPath = `js/data/capitulos/${chapterInfo.file}`;
         
         loadScript(scriptPath, () => {
-            // Una vez cargado el script, la variable 'chapterContent' estará disponible globalmente.
             if (typeof chapterContent === 'undefined') {
                 console.error(`La variable 'chapterContent' no se encontró en ${scriptPath}`);
                 return;
@@ -148,186 +163,252 @@ document.addEventListener('DOMContentLoaded', () => {
             
             populateAnalysisContent(chapterContent);
             showView('analysis');
-            window.scrollTo(0, 0); // Sube al inicio de la página
+            window.scrollTo(0, 0);
+            history.pushState({ view: 'analysis', chapterId: appState.currentChapterId }, '', `#capitulo-${appState.currentChapterId}`);
         });
     }
 
     /**
-     * Rellena la vista de análisis con los datos del capítulo cargado.
-     * @param {object} data - El objeto con los datos del capítulo (de la variable 'chapterContent').
+     * Rellena la vista de análisis con el contenido del capítulo cargado.
+     * @param {object} content - El objeto chapterContent del archivo del capítulo.
      */
-    function populateAnalysisContent(data) {
-        const lang = appState.currentLang;
-        const chapterNum = appState.currentChapterId;
-
-        // Rellena la información del header
-        renderLanguageSwitcher(a.analysis.langSwitcher);
-        a.analysis.author.textContent = libroData.author;
-        a.analysis.mainTitle.textContent = `${libroData.title[lang]} - ${libroData.ui.chapter[lang]} ${chapterNum}`;
-        a.analysis.subtitle.textContent = data.title[lang];
-
-        // Rellena la introducción
-        a.analysis.contextTitle.textContent = libroData.ui.introduction[lang];
-        a.analysis.contextContent.innerHTML = data.introduction[lang];
-
-        // Rellena el título del texto principal
-        a.analysis.textTitle.textContent = libroData.ui.text[lang];
+    function populateAnalysisContent(content) {
+        const lang = appState.currentLanguage;
         
-        // Construye el texto principal, palabra por palabra
-        a.analysis.textContent.innerHTML = '';
-        data.verses.forEach(verse => {
-            const p = document.createElement('p');
-            p.className = 'mb-4';
-            
-            const verseNum = document.createElement('span');
-            verseNum.className = 'verse-number';
-            verseNum.textContent = `${verse.id} `;
-            p.appendChild(verseNum);
+        // Cabecera
+        DOM.analysis.author.textContent = libroData.author;
+        DOM.analysis.mainTitle.textContent = libroData.title[lang] || libroData.title.la;
+        DOM.analysis.subtitle.textContent = `${libroData.ui.chapter[lang] || 'Caput'} ${content.id}: ${content.title[lang] || content.title.la}`;
+        
+        // Introducción
+        DOM.analysis.contextTitle.textContent = libroData.ui.introduction[lang] || 'Introductio';
+        DOM.analysis.contextContent.innerHTML = content.introduction[lang] || content.introduction.la;
+        
+        // Texto principal
+        DOM.analysis.textTitle.textContent = libroData.ui.text[lang] || 'Textus';
+        populateTextContent(content);
+        
+        // Panel de análisis
+        DOM.analysis.analysisTitle.textContent = libroData.ui.analysis[lang] || 'Analysis';
+        resetAnalysisPanel();
 
-            verse.words[lang].forEach((word, index) => {
+        // Navegación
+        updateChapterNavigation();
+
+        // Selector de idioma
+        setupLanguageSwitcher(DOM.analysis.langSwitcher, () => populateAnalysisContent(content));
+    }
+    
+    // --------------------------------------------------------------------
+    // 4. LÓGICA DE INTERACTIVIDAD DEL TEXTO
+    // --------------------------------------------------------------------
+
+    /**
+     * Crea y muestra el contenido del texto principal, versículo por versículo.
+     * @param {object} content - El objeto chapterContent.
+     */
+    function populateTextContent(content) {
+        DOM.analysis.textContent.innerHTML = ''; // Limpiar contenido anterior
+        
+        content.verses.forEach(verse => {
+            const verseContainer = document.createElement('div');
+            verseContainer.className = 'verse-block mb-4';
+            
+            // Texto en Latín (interactivo)
+            const pLatin = document.createElement('p');
+            pLatin.dataset.lang = 'la';
+            pLatin.innerHTML = `<span class="verse-number">${verse.id}&nbsp;</span>`;
+            verse.words.la.forEach((word, index) => {
                 const wordSpan = document.createElement('span');
-                wordSpan.textContent = `${word} `;
+                wordSpan.textContent = word + ' ';
                 wordSpan.className = 'verbum';
                 wordSpan.dataset.verseId = verse.id;
                 wordSpan.dataset.wordIndex = index;
-                p.appendChild(wordSpan);
+                pLatin.appendChild(wordSpan);
             });
-            a.analysis.textContent.appendChild(p);
+            verseContainer.appendChild(pLatin);
+
+            // Textos de traducción (no interactivos)
+            libroData.languages.filter(l => l.id !== 'la').forEach(lang => {
+                const pTranslation = document.createElement('p');
+                pTranslation.dataset.lang = lang.id;
+                pTranslation.className = 'translation-text';
+                const translationText = Array.isArray(verse.words[lang.id]) 
+                    ? verse.words[lang.id].join(' ') 
+                    : verse.words[lang.id];
+                pTranslation.innerHTML = `<span class="verse-number text-transparent">${verse.id}&nbsp;</span>${translationText}`;
+                verseContainer.appendChild(pTranslation);
+            });
+            
+            DOM.analysis.textContent.appendChild(verseContainer);
         });
 
-        // Configura los botones de navegación (anterior/siguiente)
-        const totalChapters = libroData.chapters.length;
-        a.analysis.btnPrev.style.visibility = (chapterNum > 1) ? 'visible' : 'hidden';
-        a.analysis.btnPrev.dataset.chapterId = chapterNum - 1;
-        
-        a.analysis.btnNext.style.visibility = (chapterNum < totalChapters) ? 'visible' : 'hidden';
-        a.analysis.btnNext.dataset.chapterId = chapterNum + 1;
-        
-        // Limpia el panel de análisis
-        a.analysis.analysisContent.innerHTML = `<p class="text-[#6d4c35] font-['IM_Fell_English']">${libroData.ui.analysisPrompt[lang]}</p>`;
+        // Asegurar que solo el idioma activo es visible
+        updateVisibleLanguage();
+
+        // Listener para el análisis de palabras
+        DOM.analysis.textContent.addEventListener('click', handleWordClick);
+    }
+    
+    function handleWordClick(e) {
+        if (e.target.classList.contains('verbum')) {
+            const verseId = parseInt(e.target.dataset.verseId);
+            const wordIndex = parseInt(e.target.dataset.wordIndex);
+            
+            const verseData = chapterContent.verses.find(v => v.id === verseId);
+            if (verseData && verseData.analysis[wordIndex]) {
+                displayAnalysis(verseData.analysis[wordIndex], e.target);
+            }
+        }
     }
 
     /**
-     * Muestra el análisis de una palabra en la barra lateral.
-     * @param {HTMLElement} wordElement - El elemento <span> de la palabra que fue clickeada.
+     * Muestra el análisis morfológico de una palabra en el panel lateral.
+     * @param {object} analysisData - Los datos de análisis de la palabra.
+     * @param {HTMLElement} targetElement - El elemento <span> de la palabra que fue clicada.
      */
-    function showAnalysis(wordElement) {
-        // Elimina el resaltado de la palabra anteriormente activa
-        const currentActive = document.querySelector('.verbum.activus');
-        if (currentActive) {
-            currentActive.classList.remove('activus');
-        }
+    function displayAnalysis(analysisData, targetElement) {
+        // Resaltar palabra activa
+        document.querySelectorAll('.verbum.activus').forEach(el => el.classList.remove('activus'));
+        targetElement.classList.add('activus');
+
+        const lang = appState.currentLanguage;
+        const terms = libroData.ui.analysisTerms;
+
+        let html = `<div class="p-4 bg-white/40 rounded-md">`;
+        html += `<h4 class="text-xl font-bold text-[#3d2c1d] mb-3">${analysisData.term}</h4>`;
         
-        // Resalta la nueva palabra
-        wordElement.classList.add('activus');
+        const details = analysisData.details;
+        const analysisOrder = ['lemma', 'morphology', 'case', 'number', 'gender', 'person', 'tense', 'mood', 'voice', 'meaning', 'notes'];
 
-        const verseId = parseInt(wordElement.dataset.verseId);
-        const wordIndex = parseInt(wordElement.dataset.wordIndex);
-
-        // Busca el análisis correspondiente en los datos del capítulo
-        const verseData = chapterContent.verses.find(v => v.id === verseId);
-        const analysisData = verseData ? verseData.analysis[wordIndex] : null;
-
-        // Muestra el análisis
-        a.analysis.analysisTitle.textContent = libroData.ui.analysis[appState.currentLang];
-        if (analysisData) {
-            let html = `<h4 class="font-bold text-lg text-[#6d4c35] font-['IM_Fell_English']">${analysisData.term}</h4>`;
-            html += `<p class="text-sm text-[#8c785c] italic mb-3">${analysisData.lemma}</p>`;
-            
-            Object.entries(analysisData.details).forEach(([key, value]) => {
-                const label = libroData.ui.analysisTerms[key] ? libroData.ui.analysisTerms[key][appState.currentLang] : key;
+        analysisOrder.forEach(key => {
+            if (details[key]) {
                 html += `
-                    <details open class="mb-2">
-                        <summary class="font-semibold text-base font-['IM_Fell_English'] text-[#4a3a2a]">${label}</summary>
-                        <div class="details-content text-sm text-[#5c4d3c] mt-1">
-                            ${value}
-                        </div>
-                    </details>
+                    <div class="flex justify-between border-b border-[#d1c4b0]/50 py-1.5 text-sm">
+                        <span class="font-semibold text-[#6d4c35]">${terms[key][lang] || terms[key].la}:</span>
+                        <span class="text-right">${details[key]}</span>
+                    </div>
                 `;
-            });
-            a.analysis.analysisContent.innerHTML = html;
-        } else {
-            a.analysis.analysisContent.textContent = 'Análisis no disponible.';
-        }
-    }
-
-
-    // --- MANEJADORES DE EVENTOS ---
-
-    /**
-     * Cambia el idioma de la aplicación y vuelve a renderizar la vista actual.
-     * @param {string} langId - El ID del nuevo idioma ('he', 'es', 'la').
-     */
-    function handleLanguageChange(langId) {
-        appState.currentLang = langId;
-        if (appState.currentView === 'index') {
-            renderIndexView();
-        } else {
-            // Si estamos en la vista de análisis, simplemente volvemos a poblar con el nuevo idioma
-            populateAnalysisContent(chapterContent);
-        }
-    }
-
-    /**
-     * Configura todos los listeners de eventos de la aplicación.
-     */
-    function setupEventListeners() {
-        // Listener para los selectores de idioma (usando delegación de eventos)
-        document.body.addEventListener('click', (e) => {
-            const langBtn = e.target.closest('.lang-btn[data-lang]');
-            if (langBtn) {
-                const langId = langBtn.dataset.lang;
-                if (langId !== appState.currentLang) {
-                    handleLanguageChange(langId);
-                }
             }
-            
-            // Listener para los links de los capítulos en el índice
-            const chapterLink = e.target.closest('.chapter-grid a');
-            if (chapterLink) {
-                e.preventDefault();
-                const chapterId = chapterLink.dataset.chapterId;
-                renderAnalysisView(chapterId);
-            }
-            
-            // Listener para las palabras en el texto principal
-            const wordSpan = e.target.closest('.verbum');
-            if (wordSpan) {
-                showAnalysis(wordSpan);
-            }
-        });
-
-        // Botón para volver al índice
-        a.analysis.btnBackToIndex.addEventListener('click', () => {
-            renderIndexView();
         });
         
-        // Botón de capítulo anterior
-        a.analysis.btnPrev.addEventListener('click', (e) => {
-            e.preventDefault();
-            const chapterId = e.currentTarget.dataset.chapterId;
-            if(chapterId) renderAnalysisView(chapterId);
-        });
+        html += `</div>`;
+        DOM.analysis.analysisContent.innerHTML = html;
+    }
+    
+    /**
+     * Restablece el panel de análisis a su estado inicial.
+     */
+    function resetAnalysisPanel() {
+        const lang = appState.currentLanguage;
+        DOM.analysis.analysisContent.innerHTML = `<p class="text-[#6d4c35] font-['IM_Fell_English']">${libroData.ui.analysisPrompt[lang]}</p>`;
+        document.querySelectorAll('.verbum.activus').forEach(el => el.classList.remove('activus'));
+    }
 
-        // Botón de capítulo siguiente
-        a.analysis.btnNext.addEventListener('click', (e) => {
-            e.preventDefault();
-            const chapterId = e.currentTarget.dataset.chapterId;
-            if(chapterId) renderAnalysisView(chapterId);
+    // --------------------------------------------------------------------
+    // 5. GESTIÓN DE IDIOMA Y NAVEGACIÓN
+    // --------------------------------------------------------------------
+
+    /**
+     * Crea los botones del selector de idioma.
+     * @param {HTMLElement} container - El elemento donde se insertarán los botones.
+     * @param {function} onLanguageChange - Callback a ejecutar cuando el idioma cambia.
+     */
+    function setupLanguageSwitcher(container, onLanguageChange) {
+        container.innerHTML = '';
+        libroData.languages.forEach(lang => {
+            const button = document.createElement('button');
+            button.className = 'lang-btn';
+            button.textContent = lang.name;
+            button.dataset.langId = lang.id;
+            if (lang.id === appState.currentLanguage) {
+                button.classList.add('active-lang');
+            }
+            button.addEventListener('click', () => {
+                setLanguage(lang.id);
+                onLanguageChange();
+            });
+            container.appendChild(button);
         });
     }
 
-    // --- INICIALIZACIÓN ---
-    // Función que arranca la aplicación.
-    function init() {
-        if (typeof libroData === 'undefined') {
-            console.error("El objeto 'libroData' no está definido. Asegúrate de que 'genesis_data.js' se haya cargado correctamente.");
-            document.body.innerHTML = '<p style="color:red; font-size: 24px; text-align:center; padding: 4rem;">Error: No se pudieron cargar los datos principales del libro.</p>';
-            return;
+    /**
+     * Establece el idioma activo y actualiza la interfaz.
+     * @param {string} langId - El ID del idioma (ej. 'la', 'es').
+     */
+    function setLanguage(langId) {
+        appState.currentLanguage = langId;
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.classList.toggle('active-lang', btn.dataset.langId === langId);
+        });
+        updateVisibleLanguage();
+    }
+    
+    /**
+     * Muestra/oculta los párrafos de texto según el idioma seleccionado.
+     */
+    function updateVisibleLanguage() {
+        const lang = appState.currentLanguage;
+        document.querySelectorAll('[data-lang]').forEach(el => {
+             el.style.display = (el.dataset.lang === 'la' || el.dataset.lang === lang) ? '' : 'none';
+        });
+    }
+
+    /**
+     * Actualiza la visibilidad y los enlaces de los botones de navegación de capítulos.
+     */
+    function updateChapterNavigation() {
+        const currentId = appState.currentChapterId;
+        const prevBtn = DOM.navigation.btnPrevChapter;
+        const nextBtn = DOM.navigation.btnNextChapter;
+
+        // Botón Anterior
+        if (currentId > 1) {
+            prevBtn.style.visibility = 'visible';
+            prevBtn.dataset.chapterId = currentId - 1;
+        } else {
+            prevBtn.style.visibility = 'hidden';
         }
-        setupEventListeners();
-        renderIndexView();
+
+        // Botón Siguiente
+        if (currentId < libroData.chapters.length) {
+            nextBtn.style.visibility = 'visible';
+            nextBtn.dataset.chapterId = currentId + 1;
+        } else {
+            nextBtn.style.visibility = 'hidden';
+        }
     }
 
-    init(); // Llama a la función inicial para empezar.
+    // --------------------------------------------------------------------
+    // 6. UTILIDADES
+    // --------------------------------------------------------------------
+
+    /**
+     * Carga un script dinámicamente y ejecuta un callback al finalizar.
+     * @param {string} src - La ruta del script a cargar.
+     * @param {function} callback - La función a ejecutar cuando el script se haya cargado.
+     */
+    function loadScript(src, callback) {
+        // Eliminar script anterior del mismo capítulo si existe
+        const oldScript = document.querySelector(`script[data-chapter-script]`);
+        if (oldScript) {
+            oldScript.remove();
+        }
+
+        const script = document.createElement('script');
+        script.src = src;
+        script.dataset.chapterScript = 'true'; // Marcar como script de capítulo
+        script.onload = () => {
+            callback();
+        };
+        script.onerror = () => {
+            console.error(`Error al cargar el script: ${src}`);
+        };
+        document.body.appendChild(script);
+    }
+
+    // Arrancar la aplicación
+    init();
+
 });
+
